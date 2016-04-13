@@ -6,6 +6,9 @@ chdir(dirname(__DIR__));
 // autoload
 require_once('vendor/autoload.php');
 
+// JWT
+use \Firebase\JWT\JWT;
+
 // zend factory
 use Zend\Config\Factory;
 
@@ -79,15 +82,13 @@ EOL;
           // part of the payload
           $serverName = $config->get('serverName');
                     
-          /*
-           * Create the token as an array
-           */
+          // meta + payload
           $data = [
-            'iat'  => $issuedAt,         // Issued at: time when the token was generated
-            'jti'  => $tokenId,          // Json Token Id: an unique identifier for the token
-            'iss'  => $serverName,       // Issuer
-            'nbf'  => $notBefore,        // Not before
-            'exp'  => $expire,           // Expire
+            'iat'  => $issuedAt,         // Issued at: time when the token was generated, claim
+            'jti'  => $tokenId,          // Json Token Id: an unique identifier for the token, claim
+            'iss'  => $serverName,       // Issuer, claim
+            'nbf'  => $notBefore,        // Not before, claim
+            'exp'  => $expire,           // Expire, claim
             'data' => [                  // Data related to the signer user
               'userId'   => $rs['id'], // userid from the users table
               'userName' => $username, // User name
@@ -97,50 +98,79 @@ EOL;
           // header as json type          
           header('Content-type: application/json');
                     
-                    /*
-                     * Extract the key, which is coming from the config file. 
-                     * 
-                     * Best suggestion is the key to be a binary string and 
-                     * store it in encoded in a config file. 
-                     *
-                     * Can be generated with base64_encode(openssl_random_pseudo_bytes(64));
-                     *
-                     * keep it secure! You'll need the exact key to verify the 
-                     * token later.
-                     */
-                    $secretKey = base64_decode($config->get('jwt')->get('key'));
+          /*
+           * Extract the key, which is coming from the config file. 
+           * 
+           * Best suggestion is the key to be a binary string and 
+           * store it in encoded in a config file. 
+           *
+           * Can be generated with base64_encode(openssl_random_pseudo_bytes(64));
+           *
+           * keep it secure! You'll need the exact key to verify the 
+           * token later.
+           */
+          
+            // The key from config.php
+            // key for the server
+            $secretKey = base64_decode($config->get('jwt')->get('key'));
                     
-                    /*
-                     * Extract the algorithm from the config file too
-                     */
-                    $algorithm = $config->get('jwt')->get('algorithm');
-                    
-                    /*
-                     * Encode the array to a JWT string.
-                     * Second parameter is the key to encode the token.
-                     * 
-                     * The output string can be validated at http://jwt.io/
-                     */
-                    $jwt = JWT::encode(
-                        $data,      //Data to be encoded in the JWT
-                        $secretKey, // The signing key
-                        $algorithm  // Algorithm used to sign the token, see https://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-40#section-3
-                        );
-                        
-                    $unencodedArray = ['jwt' => $jwt];
-                    echo json_encode($unencodedArray);
-                } else {
-                    header('HTTP/1.0 401 Unauthorized');
-                }
-            } else {
-                header('HTTP/1.0 404 Not Found');
-            }
-        } catch (Exception $e) {
-            header('HTTP/1.0 500 Internal Server Error');
+            /*
+             * Extract the algorithm from the config file too
+             */
+            $algorithm = $config->get('jwt')->get('algorithm');
+                      
+            /*
+             * Encode the array to a JWT string.
+             * Second parameter is the key to encode the token.
+             * 
+             * The output string can be validated at http://jwt.io/
+             */
+
+            // (meta, payload), key to sign, algorithm
+            // It becomes the json web token
+            $jwt = JWT::encode(
+              // data
+              $data,
+              // The signing key
+              $secretKey, 
+
+              // Algorithm used to sign the token, see https://tools.ietf.org/html/draft-ietf-jose-json-web-algorithms-40#section-3
+              $algorithm
+            );
+
+            // NOTE
+            // Here, we should store the token in database
+            // before sending out to the client.
+
+            // jwt as the key in object
+            // because in the front end, jquery, we do data.jwt                        
+            $unencodedArray = ['jwt' => $jwt];
+
+            // output
+            echo json_encode($unencodedArray);
+          } 
+          else {
+            // password verfiy fail
+            header('HTTP/1.0 401 Unauthorized');
+          }
+        } 
+        else {
+          // cannot find user record in table
+          header('HTTP/1.0 404 Not Found');
         }
-    } else {
-        header('HTTP/1.0 400 Bad Request');
+      } 
+      catch (Exception $e) {
+        // Try block
+        header('HTTP/1.0 500 Internal Server Error');
+      }
+    } 
+    else {
+      // username and password are set
+      header('HTTP/1.0 400 Bad Request');
     }
-} else {
-    header('HTTP/1.0 405 Method Not Allowed');
+} 
+else 
+{
+  // is not a post request
+  header('HTTP/1.0 405 Method Not Allowed');
 }
