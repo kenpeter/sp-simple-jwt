@@ -50,6 +50,13 @@ if ($request->isGet()) {
         // use algorithm, secret key to decode  
         $token = JWT::decode($jwt, $secretKey, [$config->get('jwt')->get('algorithm')]);
 
+        // NOTE
+        // Basically, we parse the token in the above step, passed from the client.
+        // we should check that the token is stored in our database.
+        // If it is, then we know the request is good.
+        //
+        // we void the token if user logout or after certain time.
+
         // get assets
         $asset = base64_encode(file_get_contents('http://lorempixel.com/200/300/cats/'));
 
